@@ -10,39 +10,45 @@ GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '').strip()
 PUSH_KEY = os.environ.get('PUSH_KEY', '').strip()
 
 def summarize_with_gemini(text_to_summarize):
-    """调用 Gemini 进行总结 - 终极稳定版"""
+    """调用 Gemini 进行总结 - 全自动适配修复版"""
     if not GEMINI_API_KEY:
         return "【错误】未配置 GEMINI_API_KEY"
-    
-    # 使用 v1beta 接口，这是目前支持 1.5-flash 最稳定的路径
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
-    headers = {"Content-Type": "application/json"}
-    
-    data = {
-        "contents": [{
-            "parts": [{"text": f"你是一个科研助手，请用中文简要总结以下论文摘要（1-2句）：\n\n{text_to_summarize}"}]
-        }],
-        "generationConfig": {
-            "temperature": 0.1,  # 降低随机性，让总结更精准
-            "maxOutputTokens": 200
+
+    # 定义三种可能的模型路径组合
+    # 1. 官方标准路径  2. 简写路径  3. 备选模型路径
+    api_configs = [
+        {"version": "v1beta", "model": "gemini-1.5-flash"},
+        {"version": "v1", "model": "gemini-1.5-flash"},
+        {"version": "v1beta", "model": "gemini-pro"}
+    ]
+
+    last_error = ""
+    for config in api_configs:
+        url = f"https://generativelanguage.googleapis.com/{config['version']}/models/{config['model']}:generateContent?key={GEMINI_API_KEY}"
+        headers = {"Content-Type": "application/json"}
+        data = {
+            "contents": [{
+                "parts": [{"text": f"请用中文简要总结以下论文摘要（1-2句）：\n\n{text_to_summarize}"}]
+            }]
         }
-    }
-    
-    try:
-        response = requests.post(url, headers=headers, json=data, timeout=30)
-        result = response.json()
-        
-        # 成功获取结果
-        if 'candidates' in result and len(result['candidates']) > 0:
-            return result['candidates'][0]['content']['parts'][0]['text'].strip()
-        
-        # 捕捉具体的错误信息
-        error_msg = result.get('error', {}).get('message', '未知返回格式')
-        print(f"Gemini API 报错详情: {error_msg}")
-        return f"总结失败: {error_msg}"
-        
-    except Exception as e:
-        return f"接口连接失败: {str(e)}"
+
+        try:
+            response = requests.post(url, headers=headers, json=data, timeout=30)
+            result = response.json()
+            
+            # 如果成功获取结果，立即返回
+            if 'candidates' in result and len(result['candidates']) > 0:
+                return result['candidates'][0]['content']['parts'][0]['text'].strip()
+            
+            # 记录错误信息，尝试下一个配置
+            last_error = result.get('error', {}).get('message', '未知错误')
+            print(f"尝试 {config['version']}/{config['model']} 失败: {last_error}")
+            
+        except Exception as e:
+            last_error = str(e)
+            continue
+
+    return f"Gemini 所有配置均尝试失败。最后一次报错: {last_error}"
 
 def fetch_papers_with_retry(keyword, start_date, end_date):
     """带重试功能的抓取"""
