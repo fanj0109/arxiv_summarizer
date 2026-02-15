@@ -29,13 +29,13 @@ jobs:
         run: |
           pip install requests beautifulsoup4
 
-      # 第四步：执行你的 Python 脚本
-      # 这里会把你在 Settings 存的那个 GEMINI_API_KEY 传给脚本
+    # 第四步：执行你的 Python 脚本
       - name: Run summarizer
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          PUSH_KEY: ${{ secrets.PUSH_KEY }}  # <--- 就是少了这一行，请务必加上！
         run: python keywords_summarizer.py
-
+        
       # 第五步：保存运行结果
       # 脚本运行完会产生 result.txt，这一步把它上传回 GitHub 存档
       - name: Upload result
