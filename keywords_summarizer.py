@@ -58,11 +58,14 @@ def fetch_papers_for_date_range(keyword, start_date, end_date, max_results):
 if __name__ == "__main__":
     # --- 配置信息 ---
     # 建议包含更宽泛的词以防断更
-    keywords = ["Two-stage robust optimization", "Industrial park power system", "UAV","LSTM","GRN"]
+    keywords = ["Machine Learning","Large Language Models","Transformer","Two-stage robust optimization", "Industrial park power system", "UAV","LSTM","GRN"]
+    # --- 临时修改：把 2 天改成 30 天，确保覆盖足够多的论文 ---
+    end_date_str = datetime.now().strftime("%Y%m%d%H%M%S")
+    start_date_str = (datetime.now() - timedelta(days=30)).strftime("%Y%m%d%H%M%S")
     
     # ArXiv 使用的时间戳格式
-    end_date_str = datetime.now().strftime("%Y%m%d%H%M%S")
-    start_date_str = (datetime.now() - timedelta(days=2)).strftime("%Y%m%d%H%M%S")
+    #end_date_str = datetime.now().strftime("%Y%m%d%H%M%S")
+    #start_date_str = (datetime.now() - timedelta(days=2)).strftime("%Y%m%d%H%M%S")
     
     final_content = ""
     print(f"开始搜索从 {start_date_str} 至今的论文...")
