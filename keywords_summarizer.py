@@ -100,4 +100,22 @@ if __name__ == "__main__":
             result_file.write(output)
             time.sleep(2) # 避免请求过快
 
-    print("任务完成，结果已保存至 result.txt")
+# --- 在文件最末尾添加以下内容 ---
+    # 读取推送钥匙
+    push_key = os.getenv('PUSH_KEY')
+    if push_key:
+        import requests
+        # 读取刚刚写好的结果文件内容
+        with open("result.txt", "r", encoding="utf-8") as f:
+            content = f.read()
+        
+        # 发送到微信
+        push_url = f"https://sctapi.ftqq.com/{push_key}.send"
+        data = {
+            "title": f"今日论文速递 - {datetime.now().strftime('%m/%d')}",
+            "desp": content.replace("\n", "\n\n") # 微信显示需要多加个换行
+        }
+        requests.post(push_url, data=data)
+        print("已发送至微信")
+
+print("任务全部完成！")
