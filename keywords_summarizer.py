@@ -2,11 +2,12 @@ import requests
 from bs4 import BeautifulSoup
 import xml.etree.ElementTree as ET
 import time
+import os
 from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Set up your Gemini API key
-GEMINI_API_KEY = ""
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 
 def fetch_abstract(arxiv_url):
     # Fetch the arXiv page content using requests
@@ -124,28 +125,52 @@ def fetch_papers(keywords, start_date, end_date, max_results_per_keyword):
 
 # Open the result file to store the summaries
 with open("result.txt", "w") as result_file:
-    # Prompt for user input
-    keywords = input("Enter keywords separated by commas: ").strip().split(',')
-    start_date = input("Enter start date (YYYY-MM-DD): ").strip()
-    end_date = input("Enter end date (YYYY-MM-DD): ").strip()
-    max_results_per_keyword = int(input("Enter the number of results per keyword: ").strip())
+   # --- 以下是修改后的自动化执行部分 ---
 
-    # Fetch papers based on keywords, date range, and max results per keyword
+import os  # 确保你在文件最顶部已经 import os
+
+# 1. 自动获取 Gemini 密钥（从 GitHub Secrets 读取）
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
+
+with open("result.txt", "w", encoding="utf-8") as result_file:
+    # 2. 直接写死你的关键词（不需要手动输入了）
+    # 根据你的研究方向，我为你预设了以下关键词
+    keywords = ["Two-stage robust optimization", "Industrial park power system", "UAV obstacle avoidance"]
+    
+    # 3. 自动计算日期范围（获取最近 2 天的论文，确保不遗漏）
+    end_date_obj = datetime.now()
+    start_date_obj = end_date_obj - timedelta(days=2)
+    
+    start_date = start_date_obj.strftime("%Y-%m-%d")
+    end_date = end_date_obj.strftime("%Y-%m-%d")
+    
+    # 4. 设定每个关键词抓取的数量
+    max_results_per_keyword = 5
+
+    print(f"开始任务：抓取 {start_date} 至 {end_date} 的论文")
+
+    # 获取论文列表
     papers = fetch_papers(keywords, start_date, end_date, max_results_per_keyword)
     
+    if not papers:
+        result_file.write("今日无相关关键词论文更新。")
+        print("今日无更新。")
+    
     for paper in papers:
-        print(f"Fetching abstract for: {paper['title']}")
+        print(f"正在分析: {paper['title']}")
         
-        # Fetch the abstract
+        # 获取摘要并调用 Gemini 总结
         abstract = paper['summary']
         if not abstract.startswith("Error"):
-            # Summarize the abstract using Gemini
             summary = summarize_with_gemini(abstract)
-            # summary = 'xyz'
-            result_file.write(f"Keyword: {paper['keyword']}\nTitle: {paper['title']}\nLink: {paper['link']}\nSummary: {summary}\n\n")
-            print(f"Summary for {paper['title']}:\n{summary}\n")
+            # 将结果写入文件
+            output = f"关键词: {paper['keyword']}\n标题: {paper['title']}\n链接: {paper['link']}\nGemini 总结: {summary}\n\n"
+            result_file.write(output)
+            print(f"完成总结: {paper['title']}")
         else:
-            result_file.write(f"Keyword: {paper['keyword']}\nTitle: {paper['title']}\nLink: {paper['link']}\nSummary: Error fetching abstract\n\n")
-            print(f"Error fetching abstract for {paper['title']}\n")
-        # Add a 2-seconds delay between each summary request
+            result_file.write(f"标题: {paper['title']}\n错误: 无法获取摘要\n\n")
+        
+        # 稍微停顿，防止调用过快被封禁
         time.sleep(2)
+
+print("今日论文自动阅读任务已完成，结果已保存至 result.txt")
