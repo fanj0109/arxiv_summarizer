@@ -74,7 +74,7 @@ def fetch_papers(keywords, start_date, end_date, max_results_per_keyword):
 # --- 主程序执行部分 ---
 if __name__ == "__main__":
     # 2. 设定你的关键词
-    keywords = ["Two-stage robust optimization", "Industrial park power system", "UAV obstacle avoidance"]
+    keywords = ["Two-stage robust optimization", "Industrial park power system", "UAV","GRN","swarm"]
     
     # 3. 自动计算日期范围
     end_date_obj = datetime.now()
@@ -107,15 +107,35 @@ if __name__ == "__main__":
         import requests
         # 读取刚刚写好的结果文件内容
         with open("result.txt", "r", encoding="utf-8") as f:
-            content = f.read()
+           # --- 任务结束，开始处理推送逻辑 ---
+    push_key = os.getenv('PUSH_KEY')
+    if push_key:
+        import requests
+        print("正在准备发送微信通知...")
         
-        # 发送到微信
+        # 1. 读取抓取到的结果
+        with open("result.txt", "r", encoding="utf-8") as f:
+            content = f.read().strip()
+        
+        # 2. 如果文件为空或内容太短，说明没抓到论文
+        if not content or len(content) < 5:
+            title = f"今日论文提醒：暂无更新 ({datetime.now().strftime('%m/%d')})"
+            desp = "☕ 报告老板：在你关注的科研领域（两阶段鲁棒优化/电力系统/无人机），近两日 ArXiv 暂无新论文发布。享受没有文献压力的一天吧！"
+        else:
+            title = f"今日论文速递 - {datetime.now().strftime('%m/%d')}"
+            desp = "💡 报告老板：Gemini 已为你读完以下最新文献：\n\n" + content.replace("\n", "\n\n")
+
+        # 3. 发送至 Server酱
         push_url = f"https://sctapi.ftqq.com/{push_key}.send"
         data = {
-            "title": f"今日论文速递 - {datetime.now().strftime('%m/%d')}",
-            "desp": content.replace("\n", "\n\n") # 微信显示需要多加个换行
+            "title": title,
+            "desp": desp
         }
-        requests.post(push_url, data=data)
-        print("已发送至微信")
+        
+        try:
+            res = requests.post(push_url, data=data)
+            print(f"微信接口返回: {res.text}")
+        except Exception as e:
+            print(f"发送失败: {e}")
 
-print("任务全部完成！")
+print("全部流程已执行完毕。")
