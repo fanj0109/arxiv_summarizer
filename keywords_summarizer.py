@@ -10,28 +10,42 @@ GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '').strip()
 PUSH_KEY = os.environ.get('PUSH_KEY', '').strip()
 
 def summarize_with_gemini(text_to_summarize):
-    """调用 Gemini 进行总结"""
+    """调用 Gemini 进行总结 - 修复版本"""
     if not GEMINI_API_KEY:
-        return "【错误】GitHub Secrets 中未发现 GEMINI_API_KEY"
+        return "【错误】未发现 GEMINI_API_KEY"
     
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+    # 尝试使用 v1 版本，这通常比 v1beta 更稳定
+    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
     headers = {"Content-Type": "application/json"}
+    
     data = {
         "contents": [{
-            "parts": [{"text": f"请用中文简要总结以下内容（1-2句）：\n\n{text_to_summarize}"}]
+            "parts": [{"text": f"请用中文简要总结以下论文摘要（1-2句）：\n\n{text_to_summarize}"}]
         }]
     }
+    
     try:
         response = requests.post(url, headers=headers, json=data, timeout=30)
         result = response.json()
+        
+        # 正常获取结果
         if 'candidates' in result:
             return result['candidates'][0]['content']['parts'][0]['text']
-        else:
-            # 如果报错，打印具体的报错信息方便调试
-            error_msg = result.get('error', {}).get('message', '未知错误')
-            return f"Gemini 返回异常: {error_msg}"
+        
+        # 调试逻辑：如果 v1 报错，尝试 v1beta 但使用简写模型名
+        error_msg = result.get('error', {}).get('message', '未知错误')
+        print(f"v1 调用失败，尝试备选方案... 报错: {error_msg}")
+        
+        # 备选方案：使用 v1beta 接口
+        alt_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={GEMINI_API_KEY}"
+        alt_response = requests.post(alt_url, headers=headers, json=data, timeout=30)
+        alt_result = alt_response.json()
+        if 'candidates' in alt_result:
+            return alt_result['candidates'][0]['content']['parts'][0]['text']
+            
+        return f"Gemini 仍然报错: {error_msg}"
     except Exception as e:
-        return f"总结接口调用失败: {str(e)}"
+        return f"总结调用失败: {str(e)}"
 
 def fetch_papers_with_retry(keyword, start_date, end_date):
     """带重试功能的抓取"""
