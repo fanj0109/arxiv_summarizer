@@ -10,49 +10,34 @@ GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '').strip()
 PUSH_KEY = os.environ.get('PUSH_KEY', '').strip()
 
 def summarize_with_gemini(text_to_summarize):
-    """调用 Gemini 进行总结 - 官方标准 REST 格式版"""
+    """调用 Gemini 进行总结 - 终极物理地址版"""
     if not GEMINI_API_KEY:
         return "【错误】未发现 GEMINI_API_KEY"
-
-    # 官方标准格式：https://generativelanguage.googleapis.com/{version}/{model_path}:generateContent
-    # 注意：model_path 必须包含 "models/" 前缀
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+    
+    # 强制使用 v1 版本，并将模型名作为纯路径参数
+    # 这是目前兼容性最高、被封禁概率最低的写法
+    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
     
     headers = {"Content-Type": "application/json"}
-    
-    # 构造最简化的请求体
     payload = {
         "contents": [{
-            "parts": [{
-                "text": f"请用中文简要总结以下论文摘要（1-2句）：\n\n{text_to_summarize}"
-            }]
+            "parts": [{"text": f"请用中文总结这段论文摘要（1-2句）：\n\n{text_to_summarize}"}]
         }]
     }
-
+    
     try:
-        response = requests.post(url, headers=headers, json=payload, timeout=30)
+        response = requests.post(url, json=payload, timeout=30)
         result = response.json()
         
-        # 1. 成功获取
+        # 成功分支
         if 'candidates' in result and len(result['candidates']) > 0:
             return result['candidates'][0]['content']['parts'][0]['text'].strip()
         
-        # 2. 捕捉具体的 API 错误
-        if 'error' in result:
-            error_code = result['error'].get('code')
-            error_msg = result['error'].get('message')
-            print(f"Gemini API 报错 ({error_code}): {error_msg}")
-            
-            # 如果是模型找不到，尝试一个绝对稳健的备选路径
-            if "not found" in error_msg.lower():
-                alt_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={GEMINI_API_KEY}"
-                alt_res = requests.post(alt_url, headers=headers, json=payload, timeout=30).json()
-                if 'candidates' in alt_res:
-                    return alt_res['candidates'][0]['content']['parts'][0]['text'].strip()
-            
-            return f"总结失败: {error_msg}"
-            
-        return "总结失败：返回格式未知"
+        # 失败自愈：如果 v1 还是 404，打印最底层的 JSON 结构到微信，帮我诊断
+        error_info = result.get('error', {})
+        msg = error_info.get('message', '未知返回格式')
+        print(f"DEBUG - API 返回: {result}")
+        return f"总结失败：{msg}"
         
     except Exception as e:
         return f"网络调用异常: {str(e)}"
