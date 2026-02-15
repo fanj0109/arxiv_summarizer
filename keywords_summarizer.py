@@ -10,45 +10,52 @@ GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '').strip()
 PUSH_KEY = os.environ.get('PUSH_KEY', '').strip()
 
 def summarize_with_gemini(text_to_summarize):
-    """调用 Gemini 进行总结 - 全自动适配修复版"""
+    """调用 Gemini 进行总结 - 官方标准 REST 格式版"""
     if not GEMINI_API_KEY:
-        return "【错误】未配置 GEMINI_API_KEY"
+        return "【错误】未发现 GEMINI_API_KEY"
 
-    # 定义三种可能的模型路径组合
-    # 1. 官方标准路径  2. 简写路径  3. 备选模型路径
-    api_configs = [
-        {"version": "v1beta", "model": "gemini-1.5-flash"},
-        {"version": "v1", "model": "gemini-1.5-flash"},
-        {"version": "v1beta", "model": "gemini-pro"}
-    ]
-
-    last_error = ""
-    for config in api_configs:
-        url = f"https://generativelanguage.googleapis.com/{config['version']}/models/{config['model']}:generateContent?key={GEMINI_API_KEY}"
-        headers = {"Content-Type": "application/json"}
-        data = {
-            "contents": [{
-                "parts": [{"text": f"请用中文简要总结以下论文摘要（1-2句）：\n\n{text_to_summarize}"}]
+    # 官方标准格式：https://generativelanguage.googleapis.com/{version}/{model_path}:generateContent
+    # 注意：model_path 必须包含 "models/" 前缀
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+    
+    headers = {"Content-Type": "application/json"}
+    
+    # 构造最简化的请求体
+    payload = {
+        "contents": [{
+            "parts": [{
+                "text": f"请用中文简要总结以下论文摘要（1-2句）：\n\n{text_to_summarize}"
             }]
-        }
+        }]
+    }
 
-        try:
-            response = requests.post(url, headers=headers, json=data, timeout=30)
-            result = response.json()
+    try:
+        response = requests.post(url, headers=headers, json=payload, timeout=30)
+        result = response.json()
+        
+        # 1. 成功获取
+        if 'candidates' in result and len(result['candidates']) > 0:
+            return result['candidates'][0]['content']['parts'][0]['text'].strip()
+        
+        # 2. 捕捉具体的 API 错误
+        if 'error' in result:
+            error_code = result['error'].get('code')
+            error_msg = result['error'].get('message')
+            print(f"Gemini API 报错 ({error_code}): {error_msg}")
             
-            # 如果成功获取结果，立即返回
-            if 'candidates' in result and len(result['candidates']) > 0:
-                return result['candidates'][0]['content']['parts'][0]['text'].strip()
+            # 如果是模型找不到，尝试一个绝对稳健的备选路径
+            if "not found" in error_msg.lower():
+                alt_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={GEMINI_API_KEY}"
+                alt_res = requests.post(alt_url, headers=headers, json=payload, timeout=30).json()
+                if 'candidates' in alt_res:
+                    return alt_res['candidates'][0]['content']['parts'][0]['text'].strip()
             
-            # 记录错误信息，尝试下一个配置
-            last_error = result.get('error', {}).get('message', '未知错误')
-            print(f"尝试 {config['version']}/{config['model']} 失败: {last_error}")
+            return f"总结失败: {error_msg}"
             
-        except Exception as e:
-            last_error = str(e)
-            continue
-
-    return f"Gemini 所有配置均尝试失败。最后一次报错: {last_error}"
+        return "总结失败：返回格式未知"
+        
+    except Exception as e:
+        return f"网络调用异常: {str(e)}"
 
 def fetch_papers_with_retry(keyword, start_date, end_date):
     """带重试功能的抓取"""
