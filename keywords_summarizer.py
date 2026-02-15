@@ -58,7 +58,7 @@ def fetch_papers_for_date_range(keyword, start_date, end_date, max_results):
 if __name__ == "__main__":
     # --- 配置信息 ---
     # 建议包含更宽泛的词以防断更
-    keywords = ["Two-stage robust optimization", "Industrial park power system", "UAV"，“LSTM”，“GRN”]
+    keywords = ["Two-stage robust optimization", "Industrial park power system", "UAV"，"LSTM"，"GRN"]
     
     # ArXiv 使用的时间戳格式
     end_date_str = datetime.now().strftime("%Y%m%d%H%M%S")
