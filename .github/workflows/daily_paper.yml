@@ -1,0 +1,45 @@
+name: Daily Arxiv Summary
+
+# 这里的 on 定义了什么时候触发这个闹钟
+on:
+  schedule:
+    # 这里的 0 0 代表 UTC 时间 0 点，换算成北京时间正好是早上 8 点
+    - cron: '0 0 * * *'
+  # 这个选项让你可以随时在网页上点按钮手动运行一次，方便调试
+  workflow_dispatch: 
+
+jobs:
+  run_script:
+    # 使用 GitHub 提供的免费虚拟电脑（Ubuntu系统）
+    runs-on: ubuntu-latest
+    
+    steps:
+      # 第一步：把你的代码下载到这台虚拟电脑上
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # 第二步：安装 Python 环境
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      # 第三步：安装运行代码需要的依赖库
+      - name: Install dependencies
+        run: |
+          pip install requests beautifulsoup4
+
+      # 第四步：执行你的 Python 脚本
+      # 这里会把你在 Settings 存的那个 GEMINI_API_KEY 传给脚本
+      - name: Run summarizer
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python keywords_summarizer.py
+
+      # 第五步：保存运行结果
+      # 脚本运行完会产生 result.txt，这一步把它上传回 GitHub 存档
+      - name: Upload result
+        uses: actions/upload-artifact@v4
+        with:
+          name: paper-summary
+          path: result.txt
