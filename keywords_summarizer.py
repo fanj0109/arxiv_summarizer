@@ -10,38 +10,40 @@ GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '').strip()
 PUSH_KEY = os.environ.get('PUSH_KEY', '').strip()
 
 def summarize_with_gemini(text_to_summarize):
-    """调用 Gemini 进行总结 - 终极物理地址版"""
+    """调用 Gemini 进行总结 - 原始 ID 兼容版"""
     if not GEMINI_API_KEY:
-        return "【错误】未发现 GEMINI_API_KEY"
+        return "【错误】未配置密钥"
     
-    # 强制使用 v1 版本，并将模型名作为纯路径参数
-    # 这是目前兼容性最高、被封禁概率最低的写法
-    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+    # --- 核心改动：使用最原始的 ID 格式 ---
+    # 很多受限账号不支持 "gemini-1.5-flash"，但支持 "gemini_pro" 或 "gemini-1.0-pro"
+    model_variants = [
+        "gemini-pro",         # 方案 1
+        "gemini-1.0-pro",     # 方案 2
+        "gemini-1.5-flash-latest" # 方案 3
+    ]
     
     headers = {"Content-Type": "application/json"}
     payload = {
-        "contents": [{
-            "parts": [{"text": f"请用中文总结这段论文摘要（1-2句）：\n\n{text_to_summarize}"}]
-        }]
+        "contents": [{"parts": [{"text": f"请用中文总结这段摘要（1-2句）：\n\n{text_to_summarize}"}]}]
     }
-    
-    try:
-        response = requests.post(url, json=payload, timeout=30)
-        result = response.json()
-        
-        # 成功分支
-        if 'candidates' in result and len(result['candidates']) > 0:
-            return result['candidates'][0]['content']['parts'][0]['text'].strip()
-        
-        # 失败自愈：如果 v1 还是 404，打印最底层的 JSON 结构到微信，帮我诊断
-        error_info = result.get('error', {})
-        msg = error_info.get('message', '未知返回格式')
-        print(f"DEBUG - API 返回: {result}")
-        return f"总结失败：{msg}"
-        
-    except Exception as e:
-        return f"网络调用异常: {str(e)}"
 
+    for model_id in model_variants:
+        # 使用 v1 稳定版路径
+        url = f"https://generativelanguage.googleapis.com/v1/models/{model_id}:generateContent?key={GEMINI_API_KEY}"
+        try:
+            response = requests.post(url, json=payload, timeout=30)
+            result = response.json()
+            
+            # 如果成功，直接返回
+            if 'candidates' in result:
+                return result['candidates'][0]['content']['parts'][0]['text'].strip()
+            
+            print(f"尝试模型 {model_id} 依然失败，尝试下一个...")
+        except:
+            continue
+
+    return "总结失败：API 依然无法识别模型 ID，请检查 Google AI Studio 权限"
+    
 def fetch_papers_with_retry(keyword, start_date, end_date):
     """带重试功能的抓取"""
     query = f'all:"{keyword}"'
